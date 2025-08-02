@@ -1,12 +1,8 @@
-# CORRECTED AND FINAL VERSION of auth_service.py
-
 from firebase_admin import auth
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .firebase_service import db
 
-# Use HTTPBearer, which simply looks for a "Bearer <token>" in the Authorization header.
-# This is the correct scheme for our use case.
 bearer_scheme = HTTPBearer()
 
 def create_firebase_user(email, password, display_name):
@@ -44,7 +40,8 @@ def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_scheme
     Dependency to get the current user from a Firebase ID token.
     Verifies the token and returns the decoded user claims.
     """
-    # The token is extracted from the 'credentials' part of the bearer scheme
+    # Logging has been removed as the issue is resolved.
+
     token = creds.credentials
     
     if not token:
@@ -55,7 +52,6 @@ def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_scheme
         )
         
     try:
-        # Verify the token with Firebase Admin SDK
         decoded_token = auth.verify_id_token(token, check_revoked=True)
         return decoded_token
     except auth.InvalidIdTokenError:

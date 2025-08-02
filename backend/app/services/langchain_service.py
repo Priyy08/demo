@@ -6,12 +6,11 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from .memory_service import FirestoreChatMessageHistory
 from ..config.settings import settings
-from ..core.context import get_user_context
 
-# 1. Initialize the LLM (No changes needed here)
-llm = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=settings.GOOGLE_API_KEY, temperature=0.7, stream=True)
+# 1. Initialize the LLM
+llm = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=settings.GOOGLE_API_KEY, temperature=0.7)
 
-# 2. Create the Prompt Template (No changes needed here)
+# 2. Create the Prompt Template
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", "You are a helpful and friendly assistant. Answer the user's questions clearly and concisely."),
@@ -20,33 +19,20 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-# 3. Create the primary Conversation Chain (No changes needed here)
+# 3. Create the primary Conversation Chain
 conversation_chain = prompt | llm
 
-# --- THIS IS THE KEY FIX ---
-# We are changing how we pass the history factory to the runnable.
-
-# The original get_session_history function is perfect and does NOT need to change.
-def get_session_history(session_id: str) -> FirestoreChatMessageHistory:
-    """
-    Factory function that gets the user_id from the request context.
-    """
-    user_info = get_user_context()
-    if not user_info or "uid" not in user_info:
-        raise ValueError("User context is not set or is invalid.")
-    
-    user_id = user_info["uid"]
+# 4. Define the history factory function.
+# It now accepts user_id directly. The context system is completely gone.
+def get_session_history(session_id: str, user_id: str) -> FirestoreChatMessageHistory:
     return FirestoreChatMessageHistory(conversation_id=session_id, user_id=user_id)
 
-
-# 4. Wrap the chain with message history management.
-#    The fix is to use a lambda function here. This lambda will receive the
-#    session_id from the wrapper and the full 'config' dictionary.
-#    We can then extract the user_id from the config and call our factory.
-# Wrap the chain with the simplified history factory.
+# 5. Create the final chain with history.
+# This runnable will now expect both 'session_id' and 'user_id' to be in the config.
+# We use a lambda function to map the keys from the config to the factory function's arguments.
 chain_with_history = RunnableWithMessageHistory(
     conversation_chain,
-    get_session_history, # Pass the new, simpler function
+    lambda session_id, **kwargs: get_session_history(session_id, user_id=kwargs["user_id"]),
     input_messages_key="question",
     history_messages_key="history",
 )

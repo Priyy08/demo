@@ -12,7 +12,8 @@ router = APIRouter()
 
 async def stream_generator(response_stream):
     """
-    Standard stream generator.
+    A permanently robust stream generator that handles and logs any errors
+    during the LangChain stream iteration.
     """
     try:
         async for chunk in response_stream:
@@ -40,17 +41,18 @@ async def stream_chat_message(
     if not conv_doc.exists or conv_doc.to_dict().get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="Conversation not found or access denied")
 
-    # The config now requires both 'session_id' and 'user_id'
-    config = {
-        "configurable": {
-            "session_id": conversation_id,
-            "user_id": user_id
-        }
-    }
+    # The config for the history wrapper now needs the user_id for the lambda function.
+    config = {"configurable": {"session_id": conversation_id, "user_id": user_id}}
     
+    # The input to the new chain structure must now contain the user_id.
+    chain_input = {
+        "question": chat_message.message,
+        "user_id": user_id
+    }
+
     try:
         response_stream = chain_with_history.astream(
-            {"question": chat_message.message},
+            {"input": chain_input}, # Pass the new input structure
             config=config,
         )
         return StreamingResponse(stream_generator(response_stream), media_type="text/event-stream")
